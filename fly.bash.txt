@@ -48,7 +48,7 @@ data="peer_id=$peer_id&unclaimed_balance=$unclaimed_balance&quil_per_hour=$quil_
 echo "$(date): Formatted data: $data"
 
 # Run curl command using the isolated variables
-curl_output=$(curl -X POST -d "$data" https://$server_ip:$server_port/receive_data.php --user $username:"$password" 2>&1)
+curl_output=$(curl -k -X POST -d "$data" https://$server_ip:$server_port/receive_data.php --user $username:"$password" 2>&1)
 
 # Echo curl command output
 echo "$(date): Curl command output: $curl_output"
