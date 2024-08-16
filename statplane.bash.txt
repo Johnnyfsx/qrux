@@ -65,30 +65,19 @@ show_current_cron_interval() {
 
 # Function to show time until the next cron job execution
 show_time_until_next_execution() {
-    # Get the current time in seconds
     current_time=$(date +%s)
-    
-    # Extract the interval from the crontab
     interval=$(crontab -l | grep '/root/fly.bash' | awk -F ' ' '{print $1}' | awk -F '/' '{print $2}')
-    
+
     if [[ -z $interval ]]; then
         echo "No cron job found for /root/fly.bash. Please set an interval first."
         return
     fi
-    
-    # Calculate the last execution time by finding the closest previous time
+
     last_execution_time=$(( (current_time / (interval * 60)) * (interval * 60) ))
-    
-    # Calculate the next execution time
     next_execution_time=$(( last_execution_time + (interval * 60) ))
-    
-    # Calculate the time left
     time_left=$(( next_execution_time - current_time ))
-    
-    # Convert time left to HH:MM:SS format
     time_left_formatted=$(printf '%02d:%02d:%02d' $((time_left / 3600)) $(( (time_left % 3600) / 60 )) $((time_left % 60)))
-    
-    # Display the time left
+
     echo "Time until next execution: $time_left_formatted (HH:MM:SS)"
 }
 
