@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# Path to the scripts
+QKRUX_SCRIPT="/var/www/html/qkrux.bash"
+TGSENDER_SCRIPT="/var/www/html/tgsender.bash"
+
+# Default cron job schedule
+DEFAULT_INTERVAL="5,35"  # Default: 5 minutes and 35 minutes past every hour
+
+# Function to add the cron job
+add_cronjob() {
+    echo "Adding cron job..."
+    
+    # Remove existing jobs related to the scripts to avoid duplicates
+    crontab -l | grep -v "$QKRUX_SCRIPT" | grep -v "$TGSENDER_SCRIPT" > mycron 2>/dev/null
+    
+    # Add new cron jobs based on the current interval
+    echo "$DEFAULT_INTERVAL * * * * $QKRUX_SCRIPT show_performance_and_bag" >> mycron
+    echo "$DEFAULT_INTERVAL * * * * sleep 10 && $TGSENDER_SCRIPT" >> mycron
+    
+    # Install the new cron file
+    crontab mycron
+    
+    # Remove the temporary file
+    rm mycron
+    
+    echo "Cron job added."
+}
+
+# Function to remove the cron job
+remove_cronjob() {
+    echo "Removing cron job..."
+    
+    # Write out the current crontab, excluding the lines with our scripts
+    crontab -l | grep -v "$QKRUX_SCRIPT" | grep -v "$TGSENDER_SCRIPT" > mycron 2>/dev/null
+    
+    # Install the new cron file
+    crontab mycron
+    
+    # Remove the temporary file
+    rm mycron
+    
+    echo "Cron job removed."
+}
+
+# Function to display the current cron jobs
+view_cronjob() {
+    echo "Current cron jobs:"
+    crontab -l | grep -E "$QKRUX_SCRIPT|$TGSENDER_SCRIPT" || echo "No related cron jobs found."
+}
+
+# Function to set a custom cron interval
+set_custom_interval() {
+    echo "Current interval: $DEFAULT_INTERVAL"
+    read -p "Enter new cron interval (e.g., '10,40' for 10 and 40 minutes past the hour): " new_interval
+    if [[ "$new_interval" =~ ^[0-9]{1,2}(,[0-9]{1,2})*$ ]]; then
+        DEFAULT_INTERVAL="$new_interval"
+        echo "Cron interval updated to $DEFAULT_INTERVAL."
+    else
+        echo "Invalid interval format. Please try again."
+    fi
+}
+
+# Display menu
+while true; do
+    clear
+    echo "Cron Job Scheduler"
+    echo "=================="
+    echo "Current Interval: $DEFAULT_INTERVAL"
+    echo "1. Start Scheduler"
+    echo "2. Stop Scheduler"
+    echo "3. View Current Scheduler"
+    echo "4. Set Custom Interval"
+    echo "5. Exit"
+    echo "=================="
+    read -p "Choose an option: " choice
+
+    case "$choice" in
+        1)
+            add_cronjob
+            read -p "Press Enter to continue..."
+            ;;
+        2)
+            remove_cronjob
+            read -p "Press Enter to continue..."
+            ;;
+        3)
+            view_cronjob
+            read -p "Press Enter to continue..."
+            ;;
+        4)
+            set_custom_interval
+            read -p "Press Enter to continue..."
+            ;;
+        5)
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice. Please try again."
+            read -p "Press Enter to continue..."
+            ;;
+    esac
+done

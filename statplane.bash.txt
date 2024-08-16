@@ -1,0 +1,173 @@
+#!/bin/bash
+
+# Function to display the menu
+show_menu() {
+    echo "========================"
+    echo "    STATPLANE MENU"
+    echo "========================"
+    echo "1. Set Interval for Cron Job"
+    echo "2. Update Cron Job"
+    echo "3. Stop Cron Job"
+    echo "4. Show Entire /var/log/fly_bash.log"
+    echo "5. Show Last 10 Entries from /var/log/syslog for fly.bash"
+    echo "6. Show Current Cron Job Interval"
+    echo "7. Show Time Until Next Execution"
+    echo "8. Exit"
+    echo -n "Choose an option [1-8]: "
+}
+
+# Function to set the interval and update the cron job
+set_interval() {
+    local interval=$1
+    if [[ ! $interval =~ ^[0-9]+$ ]] || [[ $interval -lt 1 ]]; then
+        echo "Invalid interval. Please enter a positive integer."
+        return
+    fi
+    update_cron_job "$interval"
+}
+
+# Function to update the cron job with the specified interval
+update_cron_job() {
+    local interval=$1
+    local cronjob="*/$interval * * * * /root/fly.bash >> /var/log/fly_bash.log 2>&1"
+    crontab -l | grep -v '/root/fly.bash' > /tmp/crontab.tmp
+    echo "$cronjob" >> /tmp/crontab.tmp
+    crontab /tmp/crontab.tmp
+    rm /tmp/crontab.tmp
+    echo "Cron job updated to run every $interval minutes."
+}
+
+# Function to stop the cron job
+stop_cron_job() {
+    crontab -l | grep -v '/root/fly.bash' > /tmp/crontab.tmp
+    crontab /tmp/crontab.tmp
+    rm /tmp/crontab.tmp
+    echo "Cron job for /root/fly.bash has been removed."
+}
+
+# Function to show the entire contents of /var/log/fly_bash.log
+show_entire_fly_bash_log() {
+    echo "Showing entire /var/log/fly_bash.log..."
+    cat /var/log/fly_bash.log
+}
+
+# Function to show the last 10 entries from /var/log/syslog for fly.bash
+show_last_syslog_for_fly_bash() {
+    echo "Showing last 10 entries from /var/log/syslog related to fly.bash..."
+    grep 'fly.bash' /var/log/syslog | tail -n 10
+}
+
+# Function to show the current cron job interval
+show_current_cron_interval() {
+    echo "Current cron job interval for /root/fly.bash:"
+    crontab -l | grep '/root/fly.bash' | awk -F ' ' '{print $1}' | awk -F '/' '{print "Every " $2 " minutes"}'
+}
+
+# Function to show time until the next cron job execution
+show_time_until_next_execution() {
+    # Get the current time in seconds
+    current_time=$(date +%s)
+    
+    # Extract the interval from the crontab
+    interval=$(crontab -l | grep '/root/fly.bash' | awk -F ' ' '{print $1}' | awk -F '/' '{print $2}')
+    
+    if [[ -z $interval ]]; then
+        echo "No cron job found for /root/fly.bash. Please set an interval first."
+        return
+    fi
+    
+    # Calculate the last execution time by finding the closest previous time
+    last_execution_time=$(( (current_time / (interval * 60)) * (interval * 60) ))
+    
+    # Calculate the next execution time
+    next_execution_time=$(( last_execution_time + (interval * 60) ))
+    
+    # Calculate the time left
+    time_left=$(( next_execution_time - current_time ))
+    
+    # Convert time left to HH:MM:SS format
+    time_left_formatted=$(printf '%02d:%02d:%02d' $((time_left / 3600)) $(( (time_left % 3600) / 60 )) $((time_left % 60)))
+    
+    # Display the time left
+    echo "Time until next execution: $time_left_formatted (HH:MM:SS)"
+}
+
+# Main script logic
+if [[ $# -gt 0 ]]; then
+    case $1 in
+        1)
+            if [[ -z $2 ]]; then
+                echo "Error: Interval not specified."
+                exit 1
+            fi
+            set_interval "$2"
+            ;;
+        2)
+            if [[ -z $2 ]]; then
+                echo "Error: Interval not specified."
+                exit 1
+            fi
+            update_cron_job "$2"
+            ;;
+        3)
+            stop_cron_job
+            ;;
+        4)
+            show_entire_fly_bash_log
+            ;;
+        5)
+            show_last_syslog_for_fly_bash
+            ;;
+        6)
+            show_current_cron_interval
+            ;;
+        7)
+            show_time_until_next_execution
+            ;;
+        8)
+            echo "Exiting..."
+            exit 0
+            ;;
+        *)
+            echo "Invalid option. Please choose a number between 1 and 8."
+            exit 1
+            ;;
+    esac
+else
+    while true; do
+        show_menu
+        read -r choice
+        case $choice in
+            1)
+                read -p "Enter the interval in minutes: " interval
+                set_interval "$interval"
+                ;;
+            2)
+                read -p "Enter the new interval in minutes: " interval
+                update_cron_job "$interval"
+                ;;
+            3)
+                stop_cron_job
+                ;;
+            4)
+                show_entire_fly_bash_log
+                ;;
+            5)
+                show_last_syslog_for_fly_bash
+                ;;
+            6)
+                show_current_cron_interval
+                ;;
+            7)
+                show_time_until_next_execution
+                ;;
+            8)
+                echo "Exiting..."
+                exit 0
+                ;;
+            *)
+                echo "Invalid option. Please choose a number between 1 and 8."
+                ;;
+        esac
+    done
+fi
