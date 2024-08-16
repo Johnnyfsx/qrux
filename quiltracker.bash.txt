@@ -11,7 +11,7 @@ monthly_cost=0.0
 total_quil=0.0
 log_file="$script_dir/quilreward.log"
 node_directory="/root/ceremonyclient/node"
-node_command="./node-1.4.21-linux-amd64"
+node_command="./node-1.4.21.1-linux-amd64"
 service_file="/etc/systemd/system/quilreward.service"
 timer_file="/etc/systemd/system/quilreward.timer"
 
