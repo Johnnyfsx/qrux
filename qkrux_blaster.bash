@@ -1,8 +1,26 @@
 #!/bin/bash
 
-# Telegram Bot API token and chat ID
-BOT_TOKEN=""
-CHAT_ID=""  # Your chat ID
+# Path to the Qrux_config.txt file
+config_file="/var/www/html/Qrux_config.txt"
+
+# Function to read the bot token and chat ID from the configuration file
+load_bot_config() {
+    if [[ -f "$config_file" ]]; then
+        BOT_TOKEN=$(grep -oP '(?<=BOT_TOKEN: ).*' "$config_file")
+        CHAT_ID=$(grep -oP '(?<=CHAT_ID: ).*' "$config_file")
+        
+        if [[ -z "$BOT_TOKEN" || -z "$CHAT_ID" ]]; then
+            echo "Configuration error: BOT_TOKEN or CHAT_ID not set in $config_file"
+            exit 1
+        fi
+    else
+        echo "Configuration error: $config_file not found"
+        exit 1
+    fi
+}
+
+# Load the bot token and chat ID
+load_bot_config
 
 # Path to the krux_data.log file
 log_file_krux_data="/var/www/html/krux_data.log"
@@ -14,9 +32,13 @@ sum_delta=0
 all_passed=true
 output_lines=()
 
-# Function to round or truncate to a specific number of decimal places
-round_places() {
-    printf "%.${2}f" "$1"
+# Function to round or truncate values
+round_two_places() {
+    printf "%.2f" "$1"
+}
+
+round_four_places() {
+    printf "%.4f" "$1"
 }
 
 # Read the file in reverse to get the last block first
@@ -44,10 +66,10 @@ for line in "${block_lines[@]}"; do
     percentage_change=$(echo "$line" | awk -F'"' '{print $12}')
     status=$(echo "$line" | awk -F'"' '{print $14}')
 
-    # Round the values to the appropriate number of decimal places
-    unclaimed_quil=$(round_places "$unclaimed_quil" 2)
-    quil_per_hour=$(round_places "$quil_per_hour" 4)
-    thirty_day_quil=$(round_places "$(echo "$quil_per_hour * 30 * 24" | bc)" 2)
+    # Round the values
+    unclaimed_quil=$(round_two_places "$unclaimed_quil")
+    quil_per_hour=$(round_four_places "$quil_per_hour")
+    thirty_day_quil=$(round_two_places "$(echo "$quil_per_hour * 30 * 24" | bc)")
 
     # Calculate the cumulative sums
     sum_unclaimed=$(echo "$sum_unclaimed + $unclaimed_quil" | bc)
@@ -69,13 +91,19 @@ for line in "${block_lines[@]}"; do
     output_lines+=("$output_line")
 done
 
-# Round the total values to two decimal places
-sum_unclaimed=$(round_places "$sum_unclaimed" 2)
-sum_quil_h=$(round_places "$sum_quil_h" 4)
-sum_thirty_day_quil=$(round_places "$(echo "$sum_quil_h * 30 * 24" | bc)" 2)
+# Round the total values
+sum_unclaimed=$(round_two_places "$sum_unclaimed")
+sum_quil_h=$(round_four_places "$sum_quil_h")
+sum_thirty_day_quil=$(round_two_places "$(echo "$sum_quil_h * 30 * 24" | bc)")
 
-# Combine the output lines into a single message
-telegram_message="Node Report: $(if [ "$all_passed" = true ]; then echo "✅"; else echo "❌"; fi)%0ATOTAL: -- Quil/h: $sum_quil_h -- 30d: $sum_thirty_day_quil -- Bag: $sum_unclaimed -- Check: $(if [ "$all_passed" = true ]; then echo "✅"; else echo "❌"; fi)%0A%0A"
+# Determine the overall check status
+total_check="✅"
+if [ "$all_passed" = false ]; then
+    total_check="❌"
+fi
+
+# Combine the output lines into a single message with the totals and node report at the top
+telegram_message="Node Report: $total_check%0ATOTAL: -- Quil/h: $sum_quil_h -- 30d: $sum_thirty_day_quil -- Bag: $sum_unclaimed -- Check: $total_check%0A%0A"
 for output in "${output_lines[@]}"; do
     telegram_message+="$output%0A%0A"
 done
