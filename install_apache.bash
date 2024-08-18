@@ -3,6 +3,7 @@
 # Define default variables
 apache_port=6969
 domain_name="localhost"  # Default domain name for self-signed SSL, can be changed later
+config_file="/var/www/html/Qrux_config.txt"  # Path to the existing config file
 
 # Function to install Apache and configure it
 install_apache() {
@@ -26,9 +27,26 @@ install_apache() {
     read -sp "Enter a password for $apache_user: " apache_password
     echo
 
+    # Debug: echo the username before writing it to the config file
+    echo "$(date): Captured username: $apache_user"
+
     # Create a .htpasswd file with the username and encrypted password
     sudo htpasswd -cb /etc/apache2/.htpasswd "$apache_user" "$apache_password"
     echo "$(date): .htpasswd file created with user $apache_user."
+
+    # Debug: show that we are about to write the username to the config file
+    echo "$(date): Writing username $apache_user to $config_file"
+
+    # Save the username in the existing config file
+    if grep -q "^Username:" "$config_file"; then
+        sudo sed -i "s/^Username:.*/Username: $apache_user/" "$config_file"
+    else
+        echo "Username: $apache_user" | sudo tee -a "$config_file" > /dev/null
+    fi
+
+    # Debug: Read back the username from the config file to verify it was written correctly
+    echo "$(date): Verifying username saved to config file..."
+    grep "^Username:" "$config_file"
 
     # Create a self-signed SSL certificate
     sudo openssl req -new -x509 -days 365 -nodes -out /etc/ssl/certs/qrux.crt -keyout /etc/ssl/private/qrux.key -subj "/C=US/ST=State/L=City/O=Organization/OU=OrgUnit/CN=$domain_name"
