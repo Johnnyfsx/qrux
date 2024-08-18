@@ -87,4 +87,3 @@ install_apache
 set_permissions
 
 echo "$(date): Apache installation and configuration completed."
-/root/Qkrux_Control.bash
