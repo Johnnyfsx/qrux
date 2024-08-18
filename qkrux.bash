@@ -164,3 +164,5 @@ else
         read -p "Press Enter to continue..."
     done
 fi
+export -f show_performance_and_bag
+
