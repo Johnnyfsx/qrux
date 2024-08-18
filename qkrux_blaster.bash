@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Path to the Qrux_config.txt file
+
+/var/www/html/qkrux.bash show_performance_and_bag # Update Values before we send
 config_file="/var/www/html/Qrux_config.txt"
 
 # Function to read the bot token and chat ID from the configuration file
