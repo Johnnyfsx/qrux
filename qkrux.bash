@@ -164,5 +164,8 @@ else
         read -p "Press Enter to continue..."
     done
 fi
-export -f show_performance_and_bag
-
+# If the script is called with 'show_performance_and_bag' as an argument, run the function directly
+if [[ "$1" == "show_performance_and_bag" ]]; then
+    show_performance_and_bag
+    exit 0
+fi
