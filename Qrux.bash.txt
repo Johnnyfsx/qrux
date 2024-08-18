@@ -1,13 +1,36 @@
 #!/bin/bash
 
-# Path to the data log file
+# Paths to the log files
 log_file="/var/www/html/data.log"
-
-# Path to the log file where results will be logged
 log_file_krux="/var/www/html/krux.log"
+log_file_krux_data="/var/www/html/krux_data.log"
+
+# Path to the peer ID to display name configuration file
+peerid_name_config="/var/www/html/peerid_name_config.txt"
 
 # Define the expected meeting interval (in minutes)
 Meeting_Interval=35
+
+# Set a fixed width for the Peer ID / Display Name column
+fixed_width=46
+
+# Function to load the Peer ID mappings from the configuration file
+load_peer_id_mappings() {
+    peer_id_map=""
+    while IFS= read -r line; do
+        # Ignore comments and empty lines
+        if [[ "$line" =~ ^# ]] || [[ -z "$line" ]]; then
+            continue
+        fi
+        
+        # Split the line into Peer ID and Display Name
+        peer_id=$(echo "$line" | awk '{print $1}')
+        display_name=$(echo "$line" | awk '{ $1=""; print $0 }' | sed 's/^ *//;s/ *$//')
+        
+        # Add to the mapping string
+        peer_id_map+="$peer_id:$display_name,"
+    done < "$peerid_name_config"
+}
 
 # Function to display performance and bag combined (Menu 1)
 show_performance_and_bag() {
@@ -20,12 +43,16 @@ show_performance_and_bag() {
     echo "Performance and Bag Check - $log_timestamp" | tee -a "$log_file_krux"
     echo "$log_separator" | tee -a "$log_file_krux"
 
-    # Print table headers
-    echo -e "Peer ID                                         | QUIL per Hour |          30 Days:       |  ΔQ/h  |       QuilBAG         | Wellness |   Time   " | tee -a "$log_file_krux"
-    echo "---------------------------------------------------------------------------------------------------------------------------" | tee -a "$log_file_krux"
-
     # Use awk to process the log file and calculate totals
-    awk -v meeting_interval="$Meeting_Interval" '
+    awk -v meeting_interval="$Meeting_Interval" -v peer_id_map="$peer_id_map" -v fixed_width="$fixed_width" -v krux_data_log="$log_file_krux_data" '
+    BEGIN {
+        # Convert peer_id_map string to an associative array in awk
+        split(peer_id_map, pairs, ",");
+        for (i in pairs) {
+            split(pairs[i], kv, ":");
+            map[kv[1]] = kv[2];
+        }
+    }
     {
         peer_id = $3;
         unclaimed_quil = $4;
@@ -65,23 +92,19 @@ show_performance_and_bag() {
         command | getline current_time;
         close(command);
 
+        # Loop over the last entries for each peer_id
         for (peer_id in last_quil_per_hour) {
-            # Extract the last line for this peer_id
-            split(last_line[peer_id], fields, " ");
-            quil_per_hour = fields[5];
-            quil_per_month = quil_per_hour * 24 * 30;
+            quil_per_hour = last_quil_per_hour[peer_id];
             unclaimed_quil = last_unclaimed_quil[peer_id];
-            
-            total_quil_per_hour += quil_per_hour;
-            total_quil_per_month += quil_per_month;
-            total_unclaimed_quil += unclaimed_quil;
+            timestamp = strftime("%Y-%m-%d %H:%M:%S", last_timestamp[peer_id]);
+
+            # Get the display name for the Peer ID or use the Peer ID if no mapping exists
+            display_name = (peer_id in map) ? map[peer_id] : peer_id;
 
             # Calculate the percentage change
             if (peer_id in previous_quil_per_hour) {
                 prev_quil = previous_quil_per_hour[peer_id];
                 change_in_quil_per_hour = ((quil_per_hour - prev_quil) / prev_quil) * 100;
-                total_percentage_change += change_in_quil_per_hour;
-                count_percentage_changes++;
                 change_str = sprintf("%.2f%%", change_in_quil_per_hour);
             } else {
                 change_str = "-";
@@ -90,58 +113,30 @@ show_performance_and_bag() {
             # Calculate the wellness check
             time_difference = (current_time - last_timestamp[peer_id]) / 60; # time difference in minutes
             if (time_difference <= meeting_interval) {
-                wellness_check = "✅";
+                wellness_check = "pass";
             } else {
-                wellness_check = "⚠️";
-                failed_wellness_check = 1;  # Mark that there was a failure
-                failed_peers[peer_id] = peer_id;  # Store the ID of failed peers
+                wellness_check = "fail";
             }
 
-            # Format time difference
-            time_str = sprintf("%.2f mins", time_difference);
-
-            # Print and log the result
-            output = sprintf("%-44s | %13.10f | %22.10f | %-6s | %22.10f | %8s | %9s |\n", peer_id, quil_per_hour, quil_per_month, change_str, unclaimed_quil, wellness_check, time_str);
-            printf "%s", output;
-            printf "%s", output >> "'"$log_file_krux"'";
+            # Save the entry to the krux_data.log file with values enclosed in quotes
+            printf "\"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"%s\"\n", timestamp, peer_id, display_name, unclaimed_quil, quil_per_hour, change_str, wellness_check >> krux_data_log;
         }
 
-        # Calculate average percentage change if there were any changes
-        if (count_percentage_changes > 0) {
-            average_percentage_change = total_percentage_change / count_percentage_changes;
-        } else {
-            average_percentage_change = 0;
-        }
-
-        # Print the totals
-        output = sprintf("---------------------------------------------------------------------------------------------------------------------------\n");
-        printf "%s", output;
-        printf "%s", output >> "'"$log_file_krux"'";
-
-        output_total = sprintf("%-44s | %13.10f | %22.10f | %6.2f%% | %22.10f | %8s | %9s |\n", "Total", total_quil_per_hour, total_quil_per_month, average_percentage_change, total_unclaimed_quil, "-", "-");
-        printf "%s", output_total;
-        printf "%s", output_total >> "'"$log_file_krux"'";
-
-        # Output the failed peers if any
-        if (failed_wellness_check == 1) {
-            printf "\n⚠️ Failed Wellness Check:\n";
-            print "\n⚠️ Failed Wellness Check:\n" >> "'"$log_file_krux"'";
-            for (peer_id in failed_peers) {
-                print peer_id;
-                print peer_id >> "'"$log_file_krux"'";
-            }
-            print "\nCHECK: FAILED\n";
-            print "\nCHECK: FAILED\n" >> "'"$log_file_krux"'";
-        } else {
-            print "\nCHECK: PASSED\n";
-            print "\nCHECK: PASSED\n" >> "'"$log_file_krux"'";
-        }
+        # Add a new line after the block
+        printf "\n" >> krux_data_log;
     }
     ' "$log_file"
 
     # Log the end of the performance check
     echo "$log_separator" | tee -a "$log_file_krux"
+
+    # Output the krux_data.log contents
+    echo "Content of krux_data.log:"
+    cat "$log_file_krux_data"
 }
+
+# Load the Peer ID mappings
+load_peer_id_mappings
 
 # Main script execution
 if [[ "$1" == "show_performance_and_bag" ]]; then
