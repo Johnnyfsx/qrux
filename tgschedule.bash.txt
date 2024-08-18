@@ -4,100 +4,178 @@
 QKRUX_SCRIPT="/var/www/html/qkrux.bash"
 TGSENDER_SCRIPT="/var/www/html/tgsender.bash"
 
-# Default cron job schedule
-DEFAULT_INTERVAL="5,35"  # Default: 5 minutes and 35 minutes past every hour
-
-# Function to add the cron job
-add_cronjob() {
-    echo "Adding cron job..."
+# Function to display the menu
+show_menu() {
+    local interval=$(get_current_cron_interval)
+    local time_until_next_execution=$(get_time_until_next_execution)
     
-    # Remove existing jobs related to the scripts to avoid duplicates
-    crontab -l | grep -v "$QKRUX_SCRIPT" | grep -v "$TGSENDER_SCRIPT" > mycron 2>/dev/null
-    
-    # Add new cron jobs based on the current interval
-    echo "$DEFAULT_INTERVAL * * * * $QKRUX_SCRIPT show_performance_and_bag" >> mycron
-    echo "$DEFAULT_INTERVAL * * * * sleep 10 && $TGSENDER_SCRIPT" >> mycron
-    
-    # Install the new cron file
-    crontab mycron
-    
-    # Remove the temporary file
-    rm mycron
-    
-    echo "Cron job added."
-}
-
-# Function to remove the cron job
-remove_cronjob() {
-    echo "Removing cron job..."
-    
-    # Write out the current crontab, excluding the lines with our scripts
-    crontab -l | grep -v "$QKRUX_SCRIPT" | grep -v "$TGSENDER_SCRIPT" > mycron 2>/dev/null
-    
-    # Install the new cron file
-    crontab mycron
-    
-    # Remove the temporary file
-    rm mycron
-    
-    echo "Cron job removed."
-}
-
-# Function to display the current cron jobs
-view_cronjob() {
-    echo "Current cron jobs:"
-    crontab -l | grep -E "$QKRUX_SCRIPT|$TGSENDER_SCRIPT" || echo "No related cron jobs found."
-}
-
-# Function to set a custom cron interval
-set_custom_interval() {
-    echo "Current interval: $DEFAULT_INTERVAL"
-    read -p "Enter new cron interval (e.g., '10,40' for 10 and 40 minutes past the hour): " new_interval
-    if [[ "$new_interval" =~ ^[0-9]{1,2}(,[0-9]{1,2})*$ ]]; then
-        DEFAULT_INTERVAL="$new_interval"
-        echo "Cron interval updated to $DEFAULT_INTERVAL."
+    if [[ -n "$interval" ]]; then
+        echo "====================================================================="
+        echo "         Telegram Info Blaster 🔫"
+        echo "    🛠✅ Canon shoots every $interval ✅🛫"
+        echo "                  Blast in $time_until_next_execution"
+        echo "====================================================================="
     else
-        echo "Invalid interval format. Please try again."
+        echo "======================================================================"
+        echo "            Telegram Info Blaster 🔫"
+        echo "                   💤😴 Canon is on Standby 😴💤"
+        echo "======================================================================"
+    fi
+
+    echo "1. Start/Update Scheduler"
+    echo "2. Stop Scheduler"
+    echo "3. Refresh"
+    echo "5. Exit"
+    echo "=========================================================================="
+    echo -n "Choose an option [1-5]: "
+}
+
+# Function to set the interval and update the cron job
+set_interval() {
+    local interval_input=$1
+    local interval_minutes=0
+
+    if [[ $interval_input =~ ^[0-9]+[mM]$ ]]; then
+        # Convert minutes
+        interval_minutes=${interval_input%m}
+    elif [[ $interval_input =~ ^[0-9]+[hH]$ ]]; then
+        # Convert hours to minutes
+        interval_minutes=$(( ${interval_input%h} * 60 ))
+    else
+        echo "Invalid interval format. Please enter a positive integer followed by 'm' for minutes or 'h' for hours."
+        return
+    fi
+
+    if [[ $interval_minutes -lt 1 ]]; then
+        echo "Invalid interval. Please enter a positive integer."
+        return
+    fi
+
+    update_cron_job "$interval_minutes"
+}
+
+# Function to update the cron job with the specified interval
+update_cron_job() {
+    local interval=$1
+    local cronjob_qkrux="*/$interval * * * * $QKRUX_SCRIPT >> /var/log/qkrux.log 2>&1"
+    local cronjob_tgsender="*/$interval * * * * sleep 10 && $TGSENDER_SCRIPT >> /var/log/tgsender.log 2>&1"
+
+    # For intervals of 60 minutes or more, adjust to hours and minutes
+    if [ $interval -ge 60 ]; then
+        local hours=$((interval / 60))
+        local minutes=$((interval % 60))
+        
+        if [ $interval -eq 1440 ]; then  # 1440 minutes = 1 day
+            cronjob_qkrux="0 0 * * * $QKRUX_SCRIPT >> /var/log/qkrux.log 2>&1"
+            cronjob_tgsender="0 0 * * * sleep 10 && $TGSENDER_SCRIPT >> /var/log/tgsender.log 2>&1"
+        elif [ $interval -ge 60 ]; then
+            if [ $minutes -eq 0 ]; then
+                cronjob_qkrux="0 */$hours * * * $QKRUX_SCRIPT >> /var/log/qkrux.log 2>&1"
+                cronjob_tgsender="0 */$hours * * * sleep 10 && $TGSENDER_SCRIPT >> /var/log/tgsender.log 2>&1"
+            else
+                cronjob_qkrux="$minutes */$hours * * * $QKRUX_SCRIPT >> /var/log/qkrux.log 2>&1"
+                cronjob_tgsender="$minutes */$hours * * * sleep 10 && $TGSENDER_SCRIPT >> /var/log/tgsender.log 2>&1"
+            fi
+        fi
+    fi
+
+    crontab -l | grep -v "$QKRUX_SCRIPT" | grep -v "$TGSENDER_SCRIPT" > /tmp/crontab.tmp
+    echo "$cronjob_qkrux" >> /tmp/crontab.tmp
+    echo "$cronjob_tgsender" >> /tmp/crontab.tmp
+    crontab /tmp/crontab.tmp
+    rm /tmp/crontab.tmp
+    echo "Cron jobs updated to run every $interval minutes."
+}
+
+# Function to stop the cron job
+stop_cron_job() {
+    crontab -l | grep -v "$QKRUX_SCRIPT" | grep -v "$TGSENDER_SCRIPT" > /tmp/crontab.tmp
+    crontab /tmp/crontab.tmp
+    rm /tmp/crontab.tmp
+    echo "Cron jobs for $QKRUX_SCRIPT and $TGSENDER_SCRIPT have been removed."
+}
+
+# Function to get the current cron job interval
+get_current_cron_interval() {
+    local cronjob=$(crontab -l | grep "$QKRUX_SCRIPT")
+    
+    if [[ -z "$cronjob" ]]; then
+        echo ""
+        return
+    fi
+
+    local minute_field=$(echo "$cronjob" | awk '{print $1}')
+    local hour_field=$(echo "$cronjob" | awk '{print $2}')
+    
+    if [[ "$minute_field" =~ ^\*/([0-9]+)$ ]]; then
+        echo "${BASH_REMATCH[1]} minutes"
+    elif [[ "$minute_field" == "0" && "$hour_field" =~ ^\*/([0-9]+)$ ]]; then
+        echo "every ${BASH_REMATCH[1]} hours"
+    elif [[ "$minute_field" == "0" && "$hour_field" == "0" ]]; then
+        echo "once a day"
+    else
+        echo "custom schedule"
     fi
 }
 
-# Display menu
-while true; do
-    clear
-    echo "Cron Job Scheduler"
-    echo "=================="
-    echo "Current Interval: $DEFAULT_INTERVAL"
-    echo "1. Start Scheduler"
-    echo "2. Stop Scheduler"
-    echo "3. View Current Scheduler"
-    echo "4. Set Custom Interval"
-    echo "5. Exit"
-    echo "=================="
-    read -p "Choose an option: " choice
+# Function to get the time until the next cron job execution
+get_time_until_next_execution() {
+    local current_time=$(date +%s)
+    local interval=$(get_current_cron_interval)
 
-    case "$choice" in
+    if [[ -z $interval ]]; then
+        echo "No cron job found for $QKRUX_SCRIPT."
+        return
+    fi
+
+    local interval_minutes=0
+
+    if [[ "$interval" =~ ^([0-9]+)\ minutes$ ]]; then
+        interval_minutes=${BASH_REMATCH[1]}
+    elif [[ "$interval" =~ ^every\ ([0-9]+)\ hours$ ]]; then
+        interval_minutes=$(( ${BASH_REMATCH[1]} * 60 ))
+    elif [[ "$interval" == "once a day" ]]; then
+        interval_minutes=1440
+    else
+        echo "Custom schedule detected."
+        return
+    fi
+
+    local last_execution_time=$(( (current_time / (interval_minutes * 60)) * (interval_minutes * 60) ))
+    local next_execution_time=$(( last_execution_time + (interval_minutes * 60) ))
+    local time_left=$(( next_execution_time - current_time ))
+    local time_left_formatted=$(printf '%02d:%02d:%02d' $((time_left / 3600)) $(( (time_left % 3600) / 60 )) $((time_left % 60)))
+
+    echo "$time_left_formatted"
+}
+
+# Function to refresh the menu
+refresh() {
+    clear
+    show_menu
+}
+
+# Main script logic
+while true; do
+    refresh
+    read -r choice
+    case $choice in
         1)
-            add_cronjob
-            read -p "Press Enter to continue..."
+            read -p "Enter the interval (e.g., 30m for 30 minutes, 2h for 2 hours): " interval
+            set_interval "$interval"
             ;;
         2)
-            remove_cronjob
-            read -p "Press Enter to continue..."
+            stop_cron_job
             ;;
         3)
-            view_cronjob
-            read -p "Press Enter to continue..."
-            ;;
-        4)
-            set_custom_interval
-            read -p "Press Enter to continue..."
+            refresh
             ;;
         5)
+            echo "Exiting..."
             exit 0
             ;;
         *)
-            echo "Invalid choice. Please try again."
-            read -p "Press Enter to continue..."
+            echo "Invalid option. Please choose a number between 1 and 5."
             ;;
     esac
 done
