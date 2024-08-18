@@ -1,8 +1,8 @@
 #!/bin/bash
+#sleep 60
 
+/var/www/html/qkrux.bash show_performance_and_bag
 # Path to the Qrux_config.txt file
-
-/var/www/html/qkrux.bash show_performance_and_bag # Update Values before we send
 config_file="/var/www/html/Qrux_config.txt"
 
 # Function to read the bot token and chat ID from the configuration file
@@ -87,7 +87,8 @@ for line in "${block_lines[@]}"; do
     fi
 
     # Construct the output line with the peer ID after the other values
-    output_line="$display_name%0AQuil/h: $quil_per_hour - 30d: $thirty_day_quil - Bag: $unclaimed_quil - Δ: $percentage_change - Status: $status_icon"    if [[ "$status" != "pass" ]]; then
+    output_line="$display_name%0AQuil/h: $quil_per_hour - 30d: $thirty_day_quil - Bag: $unclaimed_quil - Δ: $percentage_change - Status: $status_icon"
+    if [[ "$status" != "pass" ]]; then
         output_line="$output_line%0A❌ $peer_id"
     fi
     output_lines+=("$output_line")
