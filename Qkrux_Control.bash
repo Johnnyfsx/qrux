@@ -139,7 +139,8 @@ generate_client_installer() {
 # Function to download and install server scripts
 install_server_scripts() {
     echo "Starting the installation of server scripts..."
-
+    touch /var/www/html/peerid_name_config.txt
+    
     # Array to hold the file paths
     local files_created=()
 
