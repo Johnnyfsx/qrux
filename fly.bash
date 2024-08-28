@@ -41,8 +41,22 @@ unclaimed_balance=$(echo "$node_output" | awk '/Unclaimed balance:/ {print $3}')
 echo "$(date): Extracted Peer ID: $peer_id"
 echo "$(date): Extracted Unclaimed balance: $unclaimed_balance"
 
-# Format data for curl
-data="peer_id=$peer_id&unclaimed_balance=$unclaimed_balance&quil_per_hour=$quil_per_hour"
+# Define the get_increment function to capture the latest increment and time_taken from logs
+get_increment() {
+    log_entry=$(sudo journalctl -u ceremonyclient.service -n 200 --no-hostname -o cat | grep -oP '"increment":\d+,"time_taken":\d+\.\d+' | tail -n 1)
+
+    increment=$(echo $log_entry | awk -F'[:,]' '{print $2}')
+    time_taken=$(echo $log_entry | awk -F'[:,]' '{print $4}')
+
+    echo "$(date): Extracted Increment: $increment"
+    echo "$(date): Extracted Time Taken: $time_taken"
+}
+
+# Call the get_increment function
+get_increment
+
+# Format data for curl including the new increment and time_taken values
+data="peer_id=$peer_id&unclaimed_balance=$unclaimed_balance&quil_per_hour=$quil_per_hour&increment=$increment&time_taken=$time_taken"
 
 # Echo formatted data
 echo "$(date): Formatted data: $data"
