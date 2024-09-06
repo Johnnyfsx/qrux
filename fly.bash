@@ -43,7 +43,7 @@ echo "$(date): Extracted Unclaimed balance: $unclaimed_balance"
 
 # Define the get_increment function to capture the latest increment and time_taken from logs
 get_increment() {
-    log_entry=$(sudo journalctl -u ceremonyclient.service -n 200 --no-hostname -o cat | grep -oP '"increment":\d+,"time_taken":\d+\.\d+' | tail -n 1)
+    log_entry=$(sudo journalctl -u ceremonyclient.service --no-hostname -o cat | grep -oP '"increment":\d+,"time_taken":\d+\.\d+' | tail -n 1)
 
     increment=$(echo $log_entry | awk -F'[:,]' '{print $2}')
     time_taken=$(echo $log_entry | awk -F'[:,]' '{print $4}')
