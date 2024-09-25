@@ -22,13 +22,16 @@ load_peer_id_mappings() {
         if [[ "$line" =~ ^# ]] || [[ -z "$line" ]]; then
             continue
         fi
-        
-        # Split the line into Peer ID and Display Name
-        peer_id=$(echo "$line" | awk '{print $1}')
-        display_name=$(echo "$line" | awk '{ $1=""; print $0 }' | sed 's/^ *//;s/ *$//')
-        
-        # Add to the mapping string
-        peer_id_map+="$peer_id:$display_name,"
+
+        # Get the active/inactive status and the rest of the line
+        status=$(echo "$line" | awk '{print $1}')
+        peer_id=$(echo "$line" | awk '{print $2}')
+        display_name=$(echo "$line" | awk '{ $1=$2=""; print $0 }' | sed 's/^ *//;s/ *$//')
+
+        # Only add active peer IDs to the mapping
+        if [[ "$status" == "active" ]]; then
+            peer_id_map+="$peer_id:$display_name,"
+        fi
     done < "$peerid_name_config"
 }
 
@@ -54,10 +57,11 @@ show_performance_and_bag() {
         }
     }
     {
+        # Adjusted the field positions according to the new file format
+        timestamp = $1 " " $2;
         peer_id = $3;
         unclaimed_quil = $4;
         quil_per_hour = $5;
-        timestamp = $1 " " $2;
 
         # Convert timestamp to epoch time for easier comparison
         command = "date -d \"" timestamp "\" +%s";
@@ -100,6 +104,12 @@ show_performance_and_bag() {
 
             # Get the display name for the Peer ID or use the Peer ID if no mapping exists
             display_name = (peer_id in map) ? map[peer_id] : peer_id;
+
+            # Check if the peer_id is active, skip if inactive
+            if (!(peer_id in map)) {
+                # Skip this entry if the peer is inactive
+                continue;
+            }
 
             # Calculate the percentage change
             if (peer_id in previous_quil_per_hour) {
@@ -164,6 +174,7 @@ else
         read -p "Press Enter to continue..."
     done
 fi
+
 # If the script is called with 'show_performance_and_bag' as an argument, run the function directly
 if [[ "$1" == "show_performance_and_bag" ]]; then
     show_performance_and_bag
