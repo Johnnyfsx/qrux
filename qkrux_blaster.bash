@@ -92,7 +92,7 @@ for line in "${block_lines[@]}"; do
     fi
 
     # Construct the output line with the peer ID after the other values
-    output_line="$display_name%0AQuil/h: $quil_per_hour - 30d: $thirty_day_quil - Bag: $unclaimed_quil - Δ: $percentage_change - Status: $status_icon"
+    output_line="$display_name%0AQuil/h: $quil_per_hour - 30d: $thirty_day_quil - Bag: $unclaimed_quil - Δ: $percentage_change - 🌐: $status_icon"
     if [[ "$status" != "pass" ]]; then
         output_line="$output_line%0A❌ $peer_id"
     fi
@@ -101,7 +101,7 @@ done
 
 # Round the total values
 sum_unclaimed=$(round_two_places "$sum_unclaimed")
-sum_quil_h=$(round_four_places "$sum_quil_h")
+sum_quil_h=$(round_two_places "$sum_quil_h")
 sum_thirty_day_quil=$(round_two_places "$(echo "$sum_quil_h * 30 * 24" | bc)")
 
 # Determine the overall check status
