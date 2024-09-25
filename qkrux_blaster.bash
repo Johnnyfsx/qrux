@@ -1,7 +1,8 @@
 #!/bin/bash
-#sleep 60
+# sleep 60
 
 /var/www/html/qkrux.bash show_performance_and_bag
+
 # Path to the Qrux_config.txt file
 config_file="/var/www/html/Qrux_config.txt"
 
@@ -33,6 +34,7 @@ sum_quil_h=0
 sum_delta=0
 all_passed=true
 output_lines=()
+message_number=0
 
 # Function to round or truncate values
 round_two_places() {
@@ -52,6 +54,9 @@ while IFS= read -r line; do
             # Process the last block found
             break
         fi
+    elif [[ "$line" == Message\ Count:* ]]; then
+        # Extract the message number from the line
+        message_number=$(echo "$line" | awk '{print $3}')
     else
         block_lines=("$line" "${block_lines[@]}")
     fi
@@ -105,20 +110,26 @@ if [ "$all_passed" = false ]; then
     total_check="❌"
 fi
 
-# Combine the output lines into a single message with the totals and node report at the top
-telegram_message="Node Report: $total_check%0ATOTAL: -- Quil/h: $sum_quil_h -- 30d: $sum_thirty_day_quil -- Bag: $sum_unclaimed -- Check: $total_check%0A%0A"
-for output in "${output_lines[@]}"; do
-    telegram_message+="$output%0A%0A"
-done
+# Function to create the Telegram message
+create_telegram_message() {
+    local sum_quil_h="$1"
+    local sum_thirty_day_quil="$2"
+    local sum_unclaimed="$3"
+    local total_check="$4"
+    local message_number="$5"
+    local output_lines=("${!6}")
 
-# Function to send message via Telegram bot
-send_telegram_message() {
-    local message="$1"
-    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
-        -d chat_id="$CHAT_ID" \
-        -d text="$message" \
-        -d parse_mode="Markdown"
+    local message="Report ($message_number): $total_check%0ATOTAL: -- Quil/h: $sum_quil_h -- 30d: $sum_thirty_day_quil -- Bag: $sum_unclaimed -- Check: $total_check%0A%0A"
+    for output in "${output_lines[@]}"; do
+        message+="$output%0A%0A"
+    done
+
+    echo "$message"
 }
 
-# Send the message via Telegram
-send_telegram_message "$telegram_message"
+# Create the Telegram message
+telegram_message=$(create_telegram_message "$sum_quil_h" "$sum_thirty_day_quil" "$sum_unclaimed" "$total_check" "$message_number" output_lines[@])
+
+# Call the send_message.sh script with the message as an argument
+/var/www/html/send_message.sh "$telegram_message"
+sudo pkill -f /var/www/html/qkrux.bash
