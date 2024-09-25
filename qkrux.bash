@@ -37,6 +37,10 @@ load_peer_id_mappings() {
 
 # Function to display performance and bag combined (Menu 1)
 show_performance_and_bag() {
+    # Calculate the number of lines to read
+    config_lines=$(wc -l < "$peerid_name_config")
+    lines_to_read=$((config_lines * 3))
+
     # Prepare the log separator and timestamp
     log_separator="-----------------------------"
     log_timestamp=$(date '+%Y-%m-%d %H:%M:%S')
@@ -46,8 +50,8 @@ show_performance_and_bag() {
     echo "Performance and Bag Check - $log_timestamp" | tee -a "$log_file_krux"
     echo "$log_separator" | tee -a "$log_file_krux"
 
-    # Use awk to process the log file and calculate totals
-    awk -v meeting_interval="$Meeting_Interval" -v peer_id_map="$peer_id_map" -v fixed_width="$fixed_width" -v krux_data_log="$log_file_krux_data" '
+    # Read the last part of the log file (3 times the number of lines in the config)
+    tail -n "$lines_to_read" "$log_file" | awk -v meeting_interval="$Meeting_Interval" -v peer_id_map="$peer_id_map" -v fixed_width="$fixed_width" -v krux_data_log="$log_file_krux_data" '
     BEGIN {
         # Convert peer_id_map string to an associative array in awk
         split(peer_id_map, pairs, ",");
@@ -57,7 +61,7 @@ show_performance_and_bag() {
         }
     }
     {
-        # Adjusted the field positions according to the new file format
+        # Adjust the field positions according to the new file format
         timestamp = $1 " " $2;
         peer_id = $3;
         unclaimed_quil = $4;
@@ -135,7 +139,7 @@ show_performance_and_bag() {
         # Add a new line after the block
         printf "\n" >> krux_data_log;
     }
-    ' "$log_file"
+    '
 
     # Log the end of the performance check
     echo "$log_separator" | tee -a "$log_file_krux"
