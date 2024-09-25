@@ -75,7 +75,7 @@ for line in "${block_lines[@]}"; do
 
     # Round the values
     unclaimed_quil=$(round_two_places "$unclaimed_quil")
-    quil_per_hour=$(round_four_places "$quil_per_hour")
+    quil_per_hour=$(round_two_places "$quil_per_hour")
     thirty_day_quil=$(round_two_places "$(echo "$quil_per_hour * 30 * 24" | bc)")
 
     # Calculate the cumulative sums
