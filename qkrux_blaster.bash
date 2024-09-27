@@ -126,7 +126,7 @@ create_telegram_message() {
 
     echo "$message"
 }
-
+sed -i '/msg_count:/s/[0-9]\+$/$(($(grep -oP "(?<=msg_count: )\d+" '"$config_file"')+1))/e' "$config_file"
 # Create the Telegram message
 telegram_message=$(create_telegram_message "$sum_quil_h" "$sum_thirty_day_quil" "$sum_unclaimed" "$total_check" "$message_number" output_lines[@])
 
