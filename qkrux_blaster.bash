@@ -126,9 +126,15 @@ create_telegram_message() {
 
     echo "$message"
 }
-sed -i '/msg_count:/s/[0-9]\+$/$(($(grep -oP "(?<=msg_count: )\d+" '"$config_file"')+1))/e' "$config_file"
+
+
+
 # Create the Telegram message
 telegram_message=$(create_telegram_message "$sum_quil_h" "$sum_thirty_day_quil" "$sum_unclaimed" "$total_check" "$message_number" output_lines[@])
+
+# Update Message Counter by +=1
+awk '/msg_count:/ {sub($2, $2+1)}1' Qrux_config.txt > tmp && mv tmp Qrux_config.txt
+
 
 # Call the send_message.sh script with the message as an argument
 /var/www/html/send_message.sh "$telegram_message"
